@@ -12,25 +12,35 @@ pub struct SearchHit {
     pub image_url: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchReport {
+    pub selected: SearchHit,
+    pub candidates: Vec<SearchHit>,
+}
+
 pub fn find_match(
     provider: &SearchProvider,
     fixture: &Path,
     serpapi_key: Option<&str>,
     image_url: Option<&str>,
-) -> Result<SearchHit> {
+) -> Result<SearchReport> {
     match provider {
         SearchProvider::Fixture => fixture_search(fixture),
         SearchProvider::Serpapi => serpapi_search(serpapi_key, image_url),
     }
 }
 
-fn fixture_search(path: &Path) -> Result<SearchHit> {
+fn fixture_search(path: &Path) -> Result<SearchReport> {
     let json = std::fs::read_to_string(path)
         .with_context(|| format!("reading fixture {}", path.display()))?;
-    serde_json::from_str(&json).context("parsing fixture search hit")
+    let selected: SearchHit = serde_json::from_str(&json).context("parsing fixture search hit")?;
+    Ok(SearchReport {
+        selected: selected.clone(),
+        candidates: vec![selected],
+    })
 }
 
-fn serpapi_search(api_key: Option<&str>, image_url: Option<&str>) -> Result<SearchHit> {
+fn serpapi_search(api_key: Option<&str>, image_url: Option<&str>) -> Result<SearchReport> {
     let api_key = api_key.context("SERPAPI_KEY or --serpapi-key is required")?;
     let image_url = image_url.context("--image-url is required for SerpAPI Google Lens")?;
     let url = format!(
@@ -53,28 +63,38 @@ fn serpapi_search(api_key: Option<&str>, image_url: Option<&str>) -> Result<Sear
     let response: SerpApiResponse =
         serde_json::from_slice(&output.stdout).context("decoding SerpAPI response")?;
 
-    let hit = response
+    let candidates = response
         .visual_matches
         .into_iter()
-        .find(|item| item.link.is_some())
+        .filter_map(SerpApiVisualMatch::into_search_hit)
+        .collect::<Vec<_>>();
+
+    let selected = candidates
+        .iter()
+        .find(|hit| is_social_url(&hit.url))
+        .or_else(|| candidates.first())
+        .cloned()
         .context("SerpAPI returned no visual match with a link")?;
 
-    let url = hit.link.unwrap();
-    if url.trim().is_empty() {
-        bail!("SerpAPI returned an empty result URL");
-    }
-
-    Ok(SearchHit {
-        title: hit
-            .title
-            .unwrap_or_else(|| "Untitled visual match".to_string()),
-        url,
-        source: hit
-            .source
-            .unwrap_or_else(|| "SerpAPI Google Lens".to_string()),
-        snippet: None,
-        image_url: hit.thumbnail,
+    Ok(SearchReport {
+        selected,
+        candidates: candidates.into_iter().take(10).collect(),
     })
+}
+
+fn is_social_url(url: &str) -> bool {
+    [
+        "instagram.com",
+        "x.com",
+        "twitter.com",
+        "linkedin.com",
+        "facebook.com",
+        "threads.net",
+        "tiktok.com",
+        "youtube.com",
+    ]
+    .iter()
+    .any(|domain| url.contains(domain))
 }
 
 #[derive(Debug, Deserialize)]
@@ -89,4 +109,25 @@ struct SerpApiVisualMatch {
     link: Option<String>,
     source: Option<String>,
     thumbnail: Option<String>,
+}
+
+impl SerpApiVisualMatch {
+    fn into_search_hit(self) -> Option<SearchHit> {
+        let url = self.link?;
+        if url.trim().is_empty() {
+            return None;
+        }
+
+        Some(SearchHit {
+            title: self
+                .title
+                .unwrap_or_else(|| "Untitled visual match".to_string()),
+            url,
+            source: self
+                .source
+                .unwrap_or_else(|| "SerpAPI Google Lens".to_string()),
+            snippet: None,
+            image_url: self.thumbnail,
+        })
+    }
 }

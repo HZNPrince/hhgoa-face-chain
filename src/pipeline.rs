@@ -5,7 +5,7 @@ use serde::Serialize;
 #[derive(Debug, Serialize)]
 struct PipelineReport {
     face: face::FaceScan,
-    search_hit: search::SearchHit,
+    search: search::SearchReport,
     evidence_hash: String,
     chain_receipt: chain::ChainReceipt,
 }
@@ -23,17 +23,28 @@ pub fn run(cli: Cli) -> Result<()> {
         "2/4 searching web/social source with {:?}",
         cli.search_provider
     );
-    let hit = search::find_match(
+    let search_report = search::find_match(
         &cli.search_provider,
         &cli.fixture,
         cli.serpapi_key.as_deref(),
         cli.image_url.as_deref(),
     )?;
-    println!("    found: {}", hit.title);
-    println!("    url: {}", hit.url);
+    println!("    selected: {}", search_report.selected.title);
+    println!("    url: {}", search_report.selected.url);
+    if search_report.candidates.len() > 1 {
+        println!("    top visual matches:");
+        for (index, candidate) in search_report.candidates.iter().take(5).enumerate() {
+            println!(
+                "      {}. {} ({})",
+                index + 1,
+                candidate.title,
+                candidate.url
+            );
+        }
+    }
 
     println!("3/4 creating canonical evidence hash");
-    let evidence = EvidenceRecord::new(&face, &hit);
+    let evidence = EvidenceRecord::new(&face, &search_report.selected);
     let evidence_hash = evidence.hash_hex();
     std::fs::create_dir_all("data").context("creating data directory")?;
     std::fs::write(
@@ -56,7 +67,7 @@ pub fn run(cli: Cli) -> Result<()> {
 
     let report = PipelineReport {
         face,
-        search_hit: hit,
+        search: search_report,
         evidence_hash,
         chain_receipt: receipt,
     };
