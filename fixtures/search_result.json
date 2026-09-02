@@ -1,0 +1,7 @@
+{
+  "title": "Demo social post: HH Goa face-chain sample",
+  "url": "https://example.com/social/hhgoa-face-chain-demo",
+  "source": "fixture-reverse-image-search",
+  "snippet": "Offline fixture used for local development. Use --search-provider serpapi for a genuine reverse-image search during the final recording.",
+  "image_url": "https://example.com/images/hhgoa-face-chain-demo.jpg"
+}
