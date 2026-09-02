@@ -17,6 +17,9 @@ pub struct Cli {
     #[arg(long, value_name = "URL")]
     pub image_url: Option<String>,
 
+    #[arg(long, default_value_t = 0.82)]
+    pub min_face_similarity: f32,
+
     #[arg(
         long,
         value_name = "PATH",

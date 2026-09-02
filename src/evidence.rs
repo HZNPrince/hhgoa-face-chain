@@ -62,6 +62,7 @@ mod tests {
             },
             confidence: 0.9,
             encoding: "phash256:def".to_string(),
+            signature: "1010".to_string(),
         };
         let hit = SearchHit {
             title: "Post".to_string(),
@@ -69,6 +70,9 @@ mod tests {
             source: "test".to_string(),
             snippet: Some("hello".to_string()),
             image_url: None,
+            verification_image_url: None,
+            face_similarity: Some(1.0),
+            face_verified: true,
         };
         let one = EvidenceRecord::new(&face, &hit);
         let two = one.clone();

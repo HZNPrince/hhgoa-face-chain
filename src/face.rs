@@ -12,6 +12,8 @@ pub struct FaceScan {
     pub bbox: FaceBox,
     pub confidence: f32,
     pub encoding: String,
+    #[serde(skip_serializing)]
+    pub signature: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -24,19 +26,29 @@ pub struct FaceBox {
 
 pub fn scan_face(path: &Path) -> Result<FaceScan> {
     let bytes = std::fs::read(path).with_context(|| format!("reading {}", path.display()))?;
-    let image_sha256 = hex::encode(Sha256::digest(&bytes));
+    scan_face_bytes(path.display().to_string(), &bytes)
+}
+
+pub fn scan_face_bytes(image_path: String, bytes: &[u8]) -> Result<FaceScan> {
+    let image_sha256 = hex::encode(Sha256::digest(bytes));
     let image = image::load_from_memory(&bytes).context("decoding input image")?;
     let bbox = detect_skin_tone_face_candidate(&image)?;
-    let encoding = encode_face_crop(&image, &bbox);
+    let signature = face_signature(&image, &bbox);
+    let encoding = encode_signature(&signature);
 
     Ok(FaceScan {
-        image_path: path.display().to_string(),
+        image_path,
         image_sha256,
         detector: "local-rust-skin-tone-candidate-v1".to_string(),
         bbox,
         confidence: 0.64,
         encoding,
+        signature,
     })
+}
+
+pub fn similarity(left: &FaceScan, right: &FaceScan) -> f32 {
+    signature_similarity(&left.signature, &right.signature)
 }
 
 fn detect_skin_tone_face_candidate(image: &DynamicImage) -> Result<FaceBox> {
@@ -200,7 +212,7 @@ impl SkinComponent {
     }
 }
 
-fn encode_face_crop(image: &DynamicImage, bbox: &FaceBox) -> String {
+fn face_signature(image: &DynamicImage, bbox: &FaceBox) -> String {
     let crop = image.crop_imm(bbox.x, bbox.y, bbox.width, bbox.height);
     let gray = crop.grayscale().resize_exact(16, 16, FilterType::Triangle);
     let luma = gray.to_luma8();
@@ -215,8 +227,25 @@ fn encode_face_crop(image: &DynamicImage, bbox: &FaceBox) -> String {
         });
     }
 
-    let digest = Sha256::digest(bits.as_bytes());
+    bits
+}
+
+fn encode_signature(signature: &str) -> String {
+    let digest = Sha256::digest(signature.as_bytes());
     format!("phash256:{}", hex::encode(digest))
+}
+
+fn signature_similarity(left: &str, right: &str) -> f32 {
+    if left.len() != right.len() || left.is_empty() {
+        return 0.0;
+    }
+
+    let distance = left
+        .bytes()
+        .zip(right.bytes())
+        .filter(|(a, b)| a != b)
+        .count();
+    1.0 - (distance as f32 / left.len() as f32)
 }
 
 #[cfg(test)]
