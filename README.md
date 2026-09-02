@@ -5,7 +5,7 @@ Rust pipeline for **HH Goa 2026 Shortlisting Task 3: Face Identification & Block
 The pipeline runs:
 
 ```text
-face scan image -> reverse image search hit -> canonical evidence hash -> blockchain record -> verification
+face scan image -> reverse image search candidates -> face verification -> canonical evidence hash -> blockchain record -> verification
 ```
 
 ## Why this design
@@ -16,6 +16,7 @@ This repo keeps the pipeline modular:
 
 - `face`: detects a likely face region and creates a deterministic perceptual encoding.
 - `search`: supports an offline fixture for development and SerpAPI Google Lens for a real reverse-image search.
+- `search` also verifies candidate images before accepting a result, so visually similar but wrong people are rejected before anything is written on-chain.
 - `evidence`: canonicalizes the found post metadata and hashes it with SHA-256.
 - `chain`: supports a local simulated blockchain and Solana Memo transactions.
 
@@ -47,10 +48,13 @@ cargo run -- \
   --image samples/input.jpg \
   --image-url "https://public-url-to-the-same-image.jpg" \
   --search-provider serpapi \
-  --chain-provider local
+  --chain-provider local \
+  --min-face-similarity 0.64
 ```
 
 SerpAPI Google Lens needs a public image URL. If the scan is only local, upload it to a temporary public location first.
+
+For the final demo, use a public image/post that is strongly indexed. The current reliable demo pattern is a known public figure image from an Instagram/X/news post where the public `og:image` contains a clear face. The project intentionally rejects candidates that do not pass face verification.
 
 ## Solana verification
 
@@ -65,7 +69,8 @@ cargo run -- \
   --image-url "https://public-url-to-the-same-image.jpg" \
   --search-provider serpapi \
   --chain-provider solana-memo \
-  --solana-cluster devnet
+  --solana-cluster devnet \
+  --min-face-similarity 0.64
 ```
 
 Verification re-fetches the transaction with `solana confirm -v` and checks that the memo contains the expected evidence hash.
@@ -73,7 +78,7 @@ Verification re-fetches the transaction with `solana confirm -v` and checks that
 ## Screen recording script
 
 1. Show the input image.
-2. Run the SerpAPI command so the terminal shows face scan, search hit, evidence hash, and chain record.
+2. Run the SerpAPI command so the terminal shows face scan, candidate scores, selected verified result, evidence hash, and chain record.
 3. Open `data/report.json` to show the structured result.
 4. If using Solana, run `solana confirm -v <signature>` and show the memo contains the same hash.
 
