@@ -88,12 +88,7 @@ fn solana_memo_publish_and_verify(
     ])
     .context("submitting Solana memo transaction")?;
 
-    let signature = signature_output
-        .lines()
-        .find(|line| line.trim().len() > 40)
-        .unwrap_or(signature_output.trim())
-        .trim()
-        .to_string();
+    let signature = extract_solana_signature(&signature_output)?;
 
     if skip_verify {
         return Ok(ChainReceipt {
@@ -132,6 +127,26 @@ fn run_solana(args: &[&str]) -> Result<String> {
     }
 
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
+fn extract_solana_signature(output: &str) -> Result<String> {
+    for line in output.lines() {
+        let line = line.trim();
+        let candidate = line.strip_prefix("Signature:").unwrap_or(line).trim();
+        if is_likely_solana_signature(candidate) {
+            return Ok(candidate.to_string());
+        }
+    }
+
+    bail!("Solana transfer output did not contain a valid transaction signature");
+}
+
+fn is_likely_solana_signature(value: &str) -> bool {
+    value.len() >= 80
+        && value.len() <= 90
+        && value
+            .chars()
+            .all(|ch| "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz".contains(ch))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -185,5 +200,16 @@ mod tests {
         assert!(chain.contains("abc123"));
 
         let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn extracts_signature_from_solana_transfer_output() {
+        let output = "\nSignature: 4tLzgJbBnGFbdCVCk3YDt2jDJoBxU2wbvFSmEZaKgaczfqj4WUzKwaAEqe2p6JQiauV38aQttHowWLg3tN9i6ZG5\n";
+        let signature = extract_solana_signature(output).expect("extract signature");
+
+        assert_eq!(
+            signature,
+            "4tLzgJbBnGFbdCVCk3YDt2jDJoBxU2wbvFSmEZaKgaczfqj4WUzKwaAEqe2p6JQiauV38aQttHowWLg3tN9i6ZG5"
+        );
     }
 }

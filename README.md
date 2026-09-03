@@ -43,11 +43,13 @@ Real reverse-image demo:
 
 ```bash
 export SERPAPI_KEY=your_serpapi_key
+solana config set --url devnet
 
 cargo run -- \
   --image samples/input.jpg \
   --search-provider serpapi \
-  --chain-provider local \
+  --chain-provider solana-memo \
+  --solana-cluster devnet \
   --min-face-similarity 0.64
 ```
 
@@ -58,7 +60,8 @@ cargo run -- \
   --image samples/input.jpg \
   --image-url "https://example.com/image.jpg" \
   --search-provider serpapi \
-  --chain-provider local \
+  --chain-provider solana-memo \
+  --solana-cluster devnet \
   --min-face-similarity 0.64
 ```
 
@@ -66,17 +69,15 @@ Outputs:
 
 - `data/evidence.json`
 - `data/report.json`
-- `data/local_chain.json`
 
 ## Blockchain Used
 
-The default demo uses a **local simulated blockchain**:
+The submission demo uses **Solana devnet memo transactions**:
 
-- Each run appends a block to `data/local_chain.json`.
-- Each block stores the SHA-256 hash of the evidence.
-- Verification recomputes the block hash and confirms the evidence hash exists in the chain.
-
-The project also includes an optional **Solana devnet memo** mode:
+- The pipeline creates a SHA-256 hash of `data/evidence.json`.
+- It submits a tiny Solana devnet transfer to the configured wallet.
+- The evidence hash is stored in the transaction memo as `hhgoa-face-chain:<hash>`.
+- Verification fetches the transaction with `solana confirm -v` and checks that the memo contains the expected hash.
 
 ```bash
 solana config set --url devnet
@@ -90,7 +91,16 @@ cargo run -- \
   --min-face-similarity 0.64
 ```
 
-For the hackathon recording, local chain mode is recommended because it is deterministic and does not depend on devnet availability.
+The project also includes a local simulated chain for offline development:
+
+```bash
+cargo run -- \
+  --image samples/input.jpg \
+  --search-provider fixture \
+  --chain-provider local
+```
+
+Local mode appends blocks to `data/local_chain.json`, but the final recording should use `--chain-provider solana-memo`.
 
 ## Known Limitations
 
@@ -98,4 +108,5 @@ For the hackathon recording, local chain mode is recommended because it is deter
 - Reverse image search depends on what Google Lens/SerpAPI can index publicly.
 - Social media platforms may block full media downloads, so some social matches are marked `UNVERIFIED`.
 - SerpAPI local image upload supports JPG, PNG, and WebP files up to 500 KB.
+- Solana devnet requires the Solana CLI, a configured devnet keypair, and enough devnet SOL for a small memo transaction.
 - Use public figures, public posts, or consented images for demos.
