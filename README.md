@@ -17,7 +17,7 @@ This repo keeps the pipeline modular:
 - `face`: detects a likely face region and creates a deterministic perceptual encoding.
 - `search`: supports an offline fixture for development and SerpAPI Google Lens for a real reverse-image search.
 - `search` also attempts to face-check candidate images and records the result as `verified`, `mismatch`, or `unverified`. Social platforms often block full media downloads, so verification is advisory rather than a hard gate.
-- `evidence`: canonicalizes the found post metadata and hashes it with SHA-256.
+- `evidence`: canonicalizes the primary match plus a shortlist of discovered candidates and hashes it with SHA-256.
 - `chain`: supports a local simulated blockchain and Solana Memo transactions.
 
 ## Quick start
@@ -36,6 +36,8 @@ The command writes:
 - `data/evidence.json`
 - `data/report.json`
 - `data/local_chain.json`
+
+`data/evidence.json` includes the primary discovered match and up to 8 ranked candidates, so the blockchain hash protects the broader search evidence instead of only one URL.
 
 ## Real reverse image search
 
@@ -87,7 +89,7 @@ Verification re-fetches the transaction with `solana confirm -v` and checks that
 ## Screen recording script
 
 1. Show the input image.
-2. Run the SerpAPI command so the terminal shows face scan, candidate scores, selected verified result, evidence hash, and chain record.
+2. Run the SerpAPI command so the terminal shows face scan, top candidates, social candidates, selected evidence target, evidence hash, and chain record.
 3. Open `data/report.json` to show the structured result.
 4. If using Solana, run `solana confirm -v <signature>` and show the memo contains the same hash.
 

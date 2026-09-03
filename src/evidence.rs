@@ -3,6 +3,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+pub const MAX_EVIDENCE_CANDIDATES: usize = 8;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EvidenceRecord {
     pub schema: String,
@@ -16,22 +18,52 @@ pub struct EvidenceRecord {
     pub discovered_image_url: Option<String>,
     pub face_check_status: String,
     pub face_similarity: Option<f32>,
+    pub discovered_candidates: Vec<EvidenceCandidate>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EvidenceCandidate {
+    pub rank: usize,
+    pub title: String,
+    pub url: String,
+    pub source: String,
+    pub is_social: bool,
+    pub face_check_status: String,
+    pub face_similarity: Option<f32>,
 }
 
 impl EvidenceRecord {
-    pub fn new(face: &FaceScan, hit: &SearchHit) -> Self {
+    pub fn new<'a>(
+        face: &FaceScan,
+        primary: &SearchHit,
+        candidates: impl IntoIterator<Item = &'a SearchHit>,
+    ) -> Self {
         Self {
             schema: "hhgoa-face-chain/evidence-v1".to_string(),
             created_at: Utc::now(),
             face_image_sha256: face.image_sha256.clone(),
             face_encoding: face.encoding.clone(),
-            discovered_title: hit.title.clone(),
-            discovered_url: hit.url.clone(),
-            discovered_source: hit.source.clone(),
-            discovered_snippet: hit.snippet.clone(),
-            discovered_image_url: hit.image_url.clone(),
-            face_check_status: hit.face_check_status.as_str().to_string(),
-            face_similarity: hit.face_similarity,
+            discovered_title: primary.title.clone(),
+            discovered_url: primary.url.clone(),
+            discovered_source: primary.source.clone(),
+            discovered_snippet: primary.snippet.clone(),
+            discovered_image_url: primary.image_url.clone(),
+            face_check_status: primary.face_check_status.as_str().to_string(),
+            face_similarity: primary.face_similarity,
+            discovered_candidates: candidates
+                .into_iter()
+                .take(MAX_EVIDENCE_CANDIDATES)
+                .enumerate()
+                .map(|(index, candidate)| EvidenceCandidate {
+                    rank: index + 1,
+                    title: candidate.title.clone(),
+                    url: candidate.url.clone(),
+                    source: candidate.source.clone(),
+                    is_social: crate::search::is_social_url(&candidate.url),
+                    face_check_status: candidate.face_check_status.as_str().to_string(),
+                    face_similarity: candidate.face_similarity,
+                })
+                .collect(),
         }
     }
 
@@ -79,7 +111,7 @@ mod tests {
             face_verified: true,
             face_check_status: FaceCheckStatus::Verified,
         };
-        let one = EvidenceRecord::new(&face, &hit);
+        let one = EvidenceRecord::new(&face, &hit, [&hit]);
         let two = one.clone();
 
         assert_eq!(one.hash_hex(), two.hash_hex());

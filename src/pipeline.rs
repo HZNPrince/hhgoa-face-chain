@@ -1,4 +1,9 @@
-use crate::{chain, cli::Cli, evidence::EvidenceRecord, face, search};
+use crate::{
+    chain,
+    cli::Cli,
+    evidence::{EvidenceRecord, MAX_EVIDENCE_CANDIDATES},
+    face, search,
+};
 use anyhow::{Context, Result, bail};
 use serde::Serialize;
 
@@ -57,12 +62,17 @@ pub fn run(cli: Cli) -> Result<()> {
     print_selected(selected);
 
     print_step(3, "Evidence fingerprint");
-    let evidence = EvidenceRecord::new(&face, selected);
+    let evidence_candidates = evidence_shortlist(selected, &search_report.candidates);
+    let evidence = EvidenceRecord::new(&face, selected, evidence_candidates);
     let evidence_hash = evidence.hash_hex();
     std::fs::create_dir_all("data").context("creating data directory")?;
     std::fs::write(EVIDENCE_PATH, serde_json::to_string_pretty(&evidence)?)
         .context("writing data/evidence.json")?;
     println!("    SHA-256        {evidence_hash}");
+    println!(
+        "    Candidates     {} recorded in evidence",
+        evidence.discovered_candidates.len()
+    );
     println!("    Evidence file  {EVIDENCE_PATH}");
 
     print_step(4, "Blockchain record");
@@ -165,4 +175,38 @@ fn clip(value: &str, max_chars: usize) -> String {
         clipped.push_str("...");
     }
     clipped
+}
+
+fn evidence_shortlist<'a>(
+    selected: &'a search::SearchHit,
+    candidates: &'a [search::SearchHit],
+) -> Vec<&'a search::SearchHit> {
+    let mut shortlist = Vec::new();
+    push_unique(&mut shortlist, selected);
+
+    for candidate in candidates.iter().take(5) {
+        push_unique(&mut shortlist, candidate);
+    }
+
+    for candidate in candidates
+        .iter()
+        .filter(|candidate| search::is_social_url(&candidate.url))
+    {
+        push_unique(&mut shortlist, candidate);
+        if shortlist.len() >= MAX_EVIDENCE_CANDIDATES {
+            break;
+        }
+    }
+
+    shortlist.truncate(MAX_EVIDENCE_CANDIDATES);
+    shortlist
+}
+
+fn push_unique<'a>(shortlist: &mut Vec<&'a search::SearchHit>, candidate: &'a search::SearchHit) {
+    if !shortlist
+        .iter()
+        .any(|existing| existing.url == candidate.url)
+    {
+        shortlist.push(candidate);
+    }
 }
