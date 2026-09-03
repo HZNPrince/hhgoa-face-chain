@@ -122,13 +122,7 @@ fn serpapi_search(
         .map(|candidate| verify_candidate_face(candidate, input_face, min_face_similarity))
         .collect::<Vec<_>>();
 
-    let selected = candidates
-        .iter()
-        .find(|hit| hit.face_verified && is_social_url(&hit.url))
-        .or_else(|| candidates.iter().find(|hit| is_social_url(&hit.url)))
-        .or_else(|| candidates.iter().find(|hit| hit.face_verified))
-        .or_else(|| candidates.first())
-        .cloned();
+    let selected = select_candidate(&candidates).cloned();
 
     candidates.sort_by(|a, b| {
         b.face_similarity
@@ -275,6 +269,36 @@ pub fn is_social_url(url: &str) -> bool {
         "threads.net",
         "tiktok.com",
         "youtube.com",
+    ]
+    .iter()
+    .any(|domain| url.contains(domain))
+}
+
+fn select_candidate(candidates: &[SearchHit]) -> Option<&SearchHit> {
+    candidates
+        .iter()
+        .find(|hit| {
+            is_primary_social_url(&hit.url)
+                && !matches!(hit.face_check_status, FaceCheckStatus::Mismatch)
+        })
+        .or_else(|| {
+            candidates
+                .iter()
+                .find(|hit| hit.face_verified && is_social_url(&hit.url))
+        })
+        .or_else(|| candidates.iter().find(|hit| is_social_url(&hit.url)))
+        .or_else(|| candidates.iter().find(|hit| hit.face_verified))
+        .or_else(|| candidates.first())
+}
+
+fn is_primary_social_url(url: &str) -> bool {
+    [
+        "instagram.com",
+        "x.com",
+        "twitter.com",
+        "threads.net",
+        "tiktok.com",
+        "facebook.com",
     ]
     .iter()
     .any(|domain| url.contains(domain))
