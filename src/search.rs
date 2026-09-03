@@ -15,12 +15,41 @@ pub struct SearchHit {
     pub face_similarity: Option<f32>,
     #[serde(default)]
     pub face_verified: bool,
+    #[serde(default)]
+    pub face_check_status: FaceCheckStatus,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchReport {
     pub selected: Option<SearchHit>,
     pub candidates: Vec<SearchHit>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FaceCheckStatus {
+    Verified,
+    Mismatch,
+    #[default]
+    Unverified,
+}
+
+impl FaceCheckStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Verified => "verified",
+            Self::Mismatch => "mismatch",
+            Self::Unverified => "unverified",
+        }
+    }
+
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Verified => "PASS",
+            Self::Mismatch => "MISMATCH",
+            Self::Unverified => "UNVERIFIED",
+        }
+    }
 }
 
 pub fn find_match(
@@ -95,7 +124,9 @@ fn serpapi_search(
     let selected = candidates
         .iter()
         .find(|hit| hit.face_verified && is_social_url(&hit.url))
+        .or_else(|| candidates.iter().find(|hit| is_social_url(&hit.url)))
         .or_else(|| candidates.iter().find(|hit| hit.face_verified))
+        .or_else(|| candidates.first())
         .cloned();
 
     candidates.sort_by(|a, b| {
@@ -211,6 +242,11 @@ fn verify_candidate_face(
     let similarity = face::similarity(input_face, &candidate_face);
     candidate.face_similarity = Some(similarity);
     candidate.face_verified = similarity >= min_face_similarity;
+    candidate.face_check_status = if candidate.face_verified {
+        FaceCheckStatus::Verified
+    } else {
+        FaceCheckStatus::Mismatch
+    };
     candidate
 }
 
@@ -284,6 +320,7 @@ impl SerpApiVisualMatch {
             image_url: self.thumbnail,
             face_similarity: None,
             face_verified: false,
+            face_check_status: FaceCheckStatus::Unverified,
         })
     }
 }

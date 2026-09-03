@@ -14,6 +14,8 @@ pub struct EvidenceRecord {
     pub discovered_source: String,
     pub discovered_snippet: Option<String>,
     pub discovered_image_url: Option<String>,
+    pub face_check_status: String,
+    pub face_similarity: Option<f32>,
 }
 
 impl EvidenceRecord {
@@ -28,6 +30,8 @@ impl EvidenceRecord {
             discovered_source: hit.source.clone(),
             discovered_snippet: hit.snippet.clone(),
             discovered_image_url: hit.image_url.clone(),
+            face_check_status: hit.face_check_status.as_str().to_string(),
+            face_similarity: hit.face_similarity,
         }
     }
 
@@ -45,7 +49,7 @@ mod tests {
     use super::*;
     use crate::{
         face::{FaceBox, FaceScan},
-        search::SearchHit,
+        search::{FaceCheckStatus, SearchHit},
     };
 
     #[test]
@@ -73,6 +77,7 @@ mod tests {
             verification_image_url: None,
             face_similarity: Some(1.0),
             face_verified: true,
+            face_check_status: FaceCheckStatus::Verified,
         };
         let one = EvidenceRecord::new(&face, &hit);
         let two = one.clone();

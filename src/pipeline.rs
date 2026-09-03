@@ -33,17 +33,17 @@ pub fn run(cli: Cli) -> Result<()> {
         cli.image_url.as_deref(),
     )?;
     if !search_report.candidates.is_empty() {
-        println!("    verified candidate scores:");
+        println!("    candidate face-check scores:");
         for (index, candidate) in search_report.candidates.iter().take(12).enumerate() {
+            let score = candidate
+                .face_similarity
+                .map(|score| format!("{score:.3}"))
+                .unwrap_or_else(|| "---".to_string());
             println!(
-                "      {}. {:.3} {} {} ({})",
+                "      {}. {} {} {} ({})",
                 index + 1,
-                candidate.face_similarity.unwrap_or(0.0),
-                if candidate.face_verified {
-                    "PASS"
-                } else {
-                    "FAIL"
-                },
+                score,
+                candidate.face_check_status.label(),
                 candidate.title,
                 candidate.url
             );
@@ -57,14 +57,14 @@ pub fn run(cli: Cli) -> Result<()> {
         if !social_candidates.is_empty() {
             println!("    social candidates seen:");
             for candidate in social_candidates {
+                let score = candidate
+                    .face_similarity
+                    .map(|score| format!("{score:.3}"))
+                    .unwrap_or_else(|| "---".to_string());
                 println!(
-                    "      {:.3} {} {} ({})",
-                    candidate.face_similarity.unwrap_or(0.0),
-                    if candidate.face_verified {
-                        "PASS"
-                    } else {
-                        "FAIL"
-                    },
+                    "      {} {} {} ({})",
+                    score,
+                    candidate.face_check_status.label(),
                     candidate.title,
                     candidate.url
                 );
@@ -72,14 +72,14 @@ pub fn run(cli: Cli) -> Result<()> {
         }
     }
     let Some(selected) = search_report.selected.as_ref() else {
-        bail!("no reverse-image candidates passed face verification");
+        bail!("no reverse-image candidates were discovered");
     };
-    println!("    selected verified match: {}", selected.title);
+    println!("    selected discovered match: {}", selected.title);
     println!("    url: {}", selected.url);
-    println!(
-        "    face similarity: {:.3}",
-        selected.face_similarity.unwrap_or(0.0)
-    );
+    println!("    face check: {}", selected.face_check_status.label());
+    if let Some(similarity) = selected.face_similarity {
+        println!("    face similarity: {similarity:.3}");
+    }
 
     println!("3/4 creating canonical evidence hash");
     let evidence = EvidenceRecord::new(&face, selected);

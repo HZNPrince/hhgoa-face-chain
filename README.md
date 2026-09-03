@@ -16,7 +16,7 @@ This repo keeps the pipeline modular:
 
 - `face`: detects a likely face region and creates a deterministic perceptual encoding.
 - `search`: supports an offline fixture for development and SerpAPI Google Lens for a real reverse-image search.
-- `search` also verifies candidate images before accepting a result, so visually similar but wrong people are rejected before anything is written on-chain.
+- `search` also attempts to face-check candidate images and records the result as `verified`, `mismatch`, or `unverified`. Social platforms often block full media downloads, so verification is advisory rather than a hard gate.
 - `evidence`: canonicalizes the found post metadata and hashes it with SHA-256.
 - `chain`: supports a local simulated blockchain and Solana Memo transactions.
 
@@ -64,7 +64,7 @@ cargo run -- \
   --min-face-similarity 0.64
 ```
 
-For the final demo, use a public image/post that is strongly indexed. The current reliable demo pattern is a known public figure image from an Instagram/X/news post where the public `og:image` contains a clear face. The project intentionally rejects candidates that do not pass face verification.
+For the final demo, use a public image/post that is strongly indexed. The current reliable demo pattern is a known public figure image from an Instagram/X/news post where the public `og:image` contains a clear face. The project prefers verified social matches, but it still records discovered social candidates when thumbnail-level verification is inconclusive.
 
 ## Solana verification
 
@@ -94,6 +94,7 @@ Verification re-fetches the transaction with `solana confirm -v` and checks that
 ## Known limitations
 
 - The default local face scanner is a lightweight Rust heuristic designed for clear portrait images. For production, replace it with a stronger model or API such as InsightFace, AWS Rekognition, Azure Face, or a Rust ONNX model.
+- The candidate verification layer is intentionally lightweight. A stronger build would add an AI/ML verifier behind the same search interface instead of treating reverse-image search alone as proof of identity.
 - Fixture search is for local development only. The final submission should use `--search-provider serpapi` or another genuine reverse-image search provider.
 - Public testnet Solana submission requires a funded devnet wallet and network access.
 - Use consented images or public figures/public posts for the demo.
