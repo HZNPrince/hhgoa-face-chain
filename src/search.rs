@@ -80,6 +80,7 @@ fn fixture_search(path: &Path) -> Result<SearchReport> {
     let selected = SearchHit {
         face_similarity: Some(1.0),
         face_verified: true,
+        face_check_status: FaceCheckStatus::Verified,
         ..selected
     };
     Ok(SearchReport {
