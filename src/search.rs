@@ -38,16 +38,14 @@ impl FaceCheckStatus {
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Verified => "verified",
-            Self::Mismatch => "mismatch",
-            Self::Unverified => "unverified",
+            Self::Mismatch | Self::Unverified => "discovered",
         }
     }
 
     pub fn label(&self) -> &'static str {
         match self {
-            Self::Verified => "PASS",
-            Self::Mismatch => "MISMATCH",
-            Self::Unverified => "UNVERIFIED",
+            Self::Verified => "VERIFIED",
+            Self::Mismatch | Self::Unverified => "-",
         }
     }
 }

@@ -15,7 +15,7 @@ What it does:
 - Detects a face-like region from an input image and creates a deterministic face fingerprint.
 - Uses SerpAPI Google Lens to run a real reverse image search from either a local uploaded image or a public image URL.
 - Prints top web results and social candidates separately.
-- Marks candidate face checks as `PASS`, `MISMATCH`, or `UNVERIFIED`.
+- Marks only successful candidate face checks as `VERIFIED`; other results remain normal discovered sources.
 - Builds `data/evidence.json` with the selected match plus multiple discovered candidates.
 - Hashes the evidence JSON with SHA-256.
 - Stores and re-verifies that hash on a blockchain layer.
@@ -106,7 +106,7 @@ Local mode appends blocks to `data/local_chain.json`, but the final recording sh
 
 - The built-in face scanner is a lightweight Rust heuristic, not a production-grade face recognition model.
 - Reverse image search depends on what Google Lens/SerpAPI can index publicly.
-- Social media platforms may block full media downloads, so some social matches are marked `UNVERIFIED`.
+- Social media platforms may block full media downloads, so some discovered social matches may not receive a `VERIFIED` label.
 - SerpAPI local image upload supports JPG, PNG, and WebP files up to 500 KB.
 - Solana devnet requires the Solana CLI, a configured devnet keypair, and enough devnet SOL for a small memo transaction.
 - Use public figures, public posts, or consented images for demos.
