@@ -177,7 +177,7 @@ fn prepare_serpapi_query(
 
     let response: SerpApiImageUploadResponse =
         serde_json::from_slice(&output.stdout).context("decoding SerpAPI image upload response")?;
-    if let Some(error) = response.error.or(response.message) {
+    if let Some(error) = response.error {
         bail!("SerpAPI image upload failed: {error}");
     }
     let image_id = response
@@ -253,7 +253,6 @@ struct SerpApiResponse {
 struct SerpApiImageUploadResponse {
     image_id: Option<String>,
     error: Option<String>,
-    message: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
