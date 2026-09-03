@@ -46,13 +46,23 @@ export SERPAPI_KEY=your_key_here
 
 cargo run -- \
   --image samples/input.jpg \
-  --image-url "https://public-url-to-the-same-image.jpg" \
   --search-provider serpapi \
   --chain-provider local \
   --min-face-similarity 0.64
 ```
 
-SerpAPI Google Lens needs a public image URL. If the scan is only local, upload it to a temporary public location first.
+By default, the CLI uploads the local `--image` to SerpAPI's Image API, receives a short-lived `image_id`, and searches Google Lens with that ID. SerpAPI currently accepts JPG, PNG, and WebP uploads up to 500 KB, and the returned `image_id` expires after about 10 minutes.
+
+If the image is already public, you can skip the upload step and search by URL:
+
+```bash
+cargo run -- \
+  --image samples/input.jpg \
+  --image-url "https://public-url-to-the-same-image.jpg" \
+  --search-provider serpapi \
+  --chain-provider local \
+  --min-face-similarity 0.64
+```
 
 For the final demo, use a public image/post that is strongly indexed. The current reliable demo pattern is a known public figure image from an Instagram/X/news post where the public `og:image` contains a clear face. The project intentionally rejects candidates that do not pass face verification.
 
@@ -66,7 +76,6 @@ solana airdrop 1
 
 cargo run -- \
   --image samples/input.jpg \
-  --image-url "https://public-url-to-the-same-image.jpg" \
   --search-provider serpapi \
   --chain-provider solana-memo \
   --solana-cluster devnet \

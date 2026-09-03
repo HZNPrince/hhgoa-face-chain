@@ -25,6 +25,7 @@ pub fn run(cli: Cli) -> Result<()> {
     );
     let search_report = search::find_match(
         &cli.search_provider,
+        &cli.image,
         &cli.fixture,
         &face,
         cli.min_face_similarity,

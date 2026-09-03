@@ -25,6 +25,7 @@ pub struct SearchReport {
 
 pub fn find_match(
     provider: &SearchProvider,
+    image_path: &Path,
     fixture: &Path,
     input_face: &face::FaceScan,
     min_face_similarity: f32,
@@ -33,9 +34,13 @@ pub fn find_match(
 ) -> Result<SearchReport> {
     match provider {
         SearchProvider::Fixture => fixture_search(fixture),
-        SearchProvider::Serpapi => {
-            serpapi_search(serpapi_key, image_url, input_face, min_face_similarity)
-        }
+        SearchProvider::Serpapi => serpapi_search(
+            serpapi_key,
+            image_url,
+            image_path,
+            input_face,
+            min_face_similarity,
+        ),
     }
 }
 
@@ -57,16 +62,13 @@ fn fixture_search(path: &Path) -> Result<SearchReport> {
 fn serpapi_search(
     api_key: Option<&str>,
     image_url: Option<&str>,
+    image_path: &Path,
     input_face: &face::FaceScan,
     min_face_similarity: f32,
 ) -> Result<SearchReport> {
     let api_key = api_key.context("SERPAPI_KEY or --serpapi-key is required")?;
-    let image_url = image_url.context("--image-url is required for SerpAPI Google Lens")?;
-    let url = format!(
-        "https://serpapi.com/search.json?engine=google_lens&url={}&api_key={}",
-        urlencoding::encode(image_url),
-        urlencoding::encode(api_key)
-    );
+    let query = prepare_serpapi_query(api_key, image_url, image_path)?;
+    let url = query.google_lens_url(api_key);
 
     let output = Command::new("curl")
         .args(["-sS", "--fail", "--max-time", "30", &url])
@@ -106,6 +108,82 @@ fn serpapi_search(
         selected,
         candidates,
     })
+}
+
+enum SerpApiLensQuery {
+    ImageId(String),
+    Url(String),
+}
+
+impl SerpApiLensQuery {
+    fn google_lens_url(&self, api_key: &str) -> String {
+        match self {
+            Self::ImageId(image_id) => format!(
+                "https://serpapi.com/search.json?engine=google_lens&image_id={}&api_key={}",
+                urlencoding::encode(image_id),
+                urlencoding::encode(api_key)
+            ),
+            Self::Url(image_url) => format!(
+                "https://serpapi.com/search.json?engine=google_lens&url={}&api_key={}",
+                urlencoding::encode(image_url),
+                urlencoding::encode(api_key)
+            ),
+        }
+    }
+}
+
+fn prepare_serpapi_query(
+    api_key: &str,
+    image_url: Option<&str>,
+    image_path: &Path,
+) -> Result<SerpApiLensQuery> {
+    if let Some(image_url) = image_url {
+        return Ok(SerpApiLensQuery::Url(image_url.to_string()));
+    }
+
+    let metadata = std::fs::metadata(image_path)
+        .with_context(|| format!("checking image size for {}", image_path.display()))?;
+    if metadata.len() > 500_000 {
+        bail!(
+            "SerpAPI image upload accepts images up to 500 KB; {} is {} KB. Compress it or pass --image-url for a public image.",
+            image_path.display(),
+            metadata.len() / 1024
+        );
+    }
+
+    let form_image = format!("image=@{}", image_path.display());
+    let output = Command::new("curl")
+        .args([
+            "-sS",
+            "--fail",
+            "--max-time",
+            "30",
+            "-X",
+            "POST",
+            "https://serpapi.com/image",
+            "-F",
+            &form_image,
+            "-F",
+            &format!("api_key={api_key}"),
+        ])
+        .output()
+        .context("uploading image to SerpAPI Image API through curl")?;
+    if !output.status.success() {
+        bail!(
+            "SerpAPI image upload failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
+    }
+
+    let response: SerpApiImageUploadResponse =
+        serde_json::from_slice(&output.stdout).context("decoding SerpAPI image upload response")?;
+    if let Some(error) = response.error.or(response.message) {
+        bail!("SerpAPI image upload failed: {error}");
+    }
+    let image_id = response
+        .image_id
+        .context("SerpAPI image upload response did not include image_id")?;
+    Ok(SerpApiLensQuery::ImageId(image_id))
 }
 
 fn verify_candidate_face(
@@ -169,6 +247,13 @@ pub fn is_social_url(url: &str) -> bool {
 struct SerpApiResponse {
     #[serde(default)]
     visual_matches: Vec<SerpApiVisualMatch>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SerpApiImageUploadResponse {
+    image_id: Option<String>,
+    error: Option<String>,
+    message: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
