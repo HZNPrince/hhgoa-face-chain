@@ -1,28 +1,36 @@
 # HH Goa Face Chain
 
-Rust pipeline for **HH Goa 2026 Shortlisting Task 3: Face Identification & Blockchain Verification**.
+Rust implementation for **HH Goa 2026 Shortlisting Task 3: Face Identification & Blockchain Verification**.
 
-The pipeline runs:
+## Functionality
+
+This project runs an end-to-end pipeline:
 
 ```text
-face scan image -> reverse image search candidates -> face verification -> canonical evidence hash -> blockchain record -> verification
+face image -> reverse image search -> web/social candidates -> evidence hash -> blockchain record -> verification
 ```
 
-## Why this design
+What it does:
 
-Social platforms usually do not expose public APIs that let you search Instagram, X, or Facebook by a raw face vector. The practical route is reverse image search: send the image or face crop to a visual search provider, receive public pages or posts where visually matching media appears, then store a tamper-evident hash of the discovered result on-chain.
+- Detects a face-like region from an input image and creates a deterministic face fingerprint.
+- Uses SerpAPI Google Lens to run a real reverse image search from either a local uploaded image or a public image URL.
+- Prints top web results and social candidates separately.
+- Marks candidate face checks as `PASS`, `MISMATCH`, or `UNVERIFIED`.
+- Builds `data/evidence.json` with the selected match plus multiple discovered candidates.
+- Hashes the evidence JSON with SHA-256.
+- Stores and re-verifies that hash on a blockchain layer.
 
-This repo keeps the pipeline modular:
+## How To Run
 
-- `face`: detects a likely face region and creates a deterministic perceptual encoding.
-- `search`: supports an offline fixture for development and SerpAPI Google Lens for a real reverse-image search.
-- `search` also attempts to face-check candidate images and records the result as `verified`, `mismatch`, or `unverified`. Social platforms often block full media downloads, so verification is advisory rather than a hard gate.
-- `evidence`: canonicalizes the primary match plus a shortlist of discovered candidates and hashes it with SHA-256.
-- `chain`: supports a local simulated blockchain and Solana Memo transactions.
+Install Rust, then clone and run:
 
-## Quick start
+```bash
+git clone git@github.com:HZNPrince/hhgoa-face-chain.git
+cd hhgoa-face-chain
+cargo test
+```
 
-Add a clear portrait image at `samples/input.jpg`, then run:
+Offline fixture demo:
 
 ```bash
 cargo run -- \
@@ -31,46 +39,44 @@ cargo run -- \
   --chain-provider local
 ```
 
-The command writes:
+Real reverse-image demo:
+
+```bash
+export SERPAPI_KEY=your_serpapi_key
+
+cargo run -- \
+  --image samples/input.jpg \
+  --search-provider serpapi \
+  --chain-provider local \
+  --min-face-similarity 0.64
+```
+
+If the image is already public, you can pass its URL:
+
+```bash
+cargo run -- \
+  --image samples/input.jpg \
+  --image-url "https://example.com/image.jpg" \
+  --search-provider serpapi \
+  --chain-provider local \
+  --min-face-similarity 0.64
+```
+
+Outputs:
 
 - `data/evidence.json`
 - `data/report.json`
 - `data/local_chain.json`
 
-`data/evidence.json` includes the primary discovered match and up to 8 ranked candidates, so the blockchain hash protects the broader search evidence instead of only one URL.
+## Blockchain Used
 
-## Real reverse image search
+The default demo uses a **local simulated blockchain**:
 
-For the final recording, use SerpAPI Google Lens:
+- Each run appends a block to `data/local_chain.json`.
+- Each block stores the SHA-256 hash of the evidence.
+- Verification recomputes the block hash and confirms the evidence hash exists in the chain.
 
-```bash
-export SERPAPI_KEY=your_key_here
-
-cargo run -- \
-  --image samples/input.jpg \
-  --search-provider serpapi \
-  --chain-provider local \
-  --min-face-similarity 0.64
-```
-
-By default, the CLI uploads the local `--image` to SerpAPI's Image API, receives a short-lived `image_id`, and searches Google Lens with that ID. SerpAPI currently accepts JPG, PNG, and WebP uploads up to 500 KB, and the returned `image_id` expires after about 10 minutes.
-
-If the image is already public, you can skip the upload step and search by URL:
-
-```bash
-cargo run -- \
-  --image samples/input.jpg \
-  --image-url "https://public-url-to-the-same-image.jpg" \
-  --search-provider serpapi \
-  --chain-provider local \
-  --min-face-similarity 0.64
-```
-
-For the final demo, use a public image/post that is strongly indexed. The current reliable demo pattern is a known public figure image from an Instagram/X/news post where the public `og:image` contains a clear face. The project prefers verified social matches, but it still records discovered social candidates when thumbnail-level verification is inconclusive.
-
-## Solana verification
-
-The Solana path stores the evidence hash in a Solana Memo transaction:
+The project also includes an optional **Solana devnet memo** mode:
 
 ```bash
 solana config set --url devnet
@@ -84,19 +90,12 @@ cargo run -- \
   --min-face-similarity 0.64
 ```
 
-Verification re-fetches the transaction with `solana confirm -v` and checks that the memo contains the expected evidence hash.
+For the hackathon recording, local chain mode is recommended because it is deterministic and does not depend on devnet availability.
 
-## Screen recording script
+## Known Limitations
 
-1. Show the input image.
-2. Run the SerpAPI command so the terminal shows face scan, top candidates, social candidates, selected evidence target, evidence hash, and chain record.
-3. Open `data/report.json` to show the structured result.
-4. If using Solana, run `solana confirm -v <signature>` and show the memo contains the same hash.
-
-## Known limitations
-
-- The default local face scanner is a lightweight Rust heuristic designed for clear portrait images. For production, replace it with a stronger model or API such as InsightFace, AWS Rekognition, Azure Face, or a Rust ONNX model.
-- The candidate verification layer is intentionally lightweight. A stronger build would add an AI/ML verifier behind the same search interface instead of treating reverse-image search alone as proof of identity.
-- Fixture search is for local development only. The final submission should use `--search-provider serpapi` or another genuine reverse-image search provider.
-- Public testnet Solana submission requires a funded devnet wallet and network access.
-- Use consented images or public figures/public posts for the demo.
+- The built-in face scanner is a lightweight Rust heuristic, not a production-grade face recognition model.
+- Reverse image search depends on what Google Lens/SerpAPI can index publicly.
+- Social media platforms may block full media downloads, so some social matches are marked `UNVERIFIED`.
+- SerpAPI local image upload supports JPG, PNG, and WebP files up to 500 KB.
+- Use public figures, public posts, or consented images for demos.
