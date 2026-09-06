@@ -45,24 +45,22 @@ Real reverse-image demo:
 export SERPAPI_KEY=your_serpapi_key
 solana config set --url devnet
 
-cargo run -- \
-  --image samples/input.jpg \
-  --search-provider serpapi \
-  --chain-provider solana-memo \
-  --solana-cluster devnet \
-  --min-face-similarity 0.64
+cargo run -- --image samples/input.jpg
 ```
 
-If the image is already public, you can pass its URL:
+The default settings are:
+
+- `FACE_CHAIN_SEARCH_PROVIDER=serpapi`
+- `FACE_CHAIN_CHAIN_PROVIDER=solana-memo`
+- `FACE_CHAIN_SOLANA_CLUSTER=devnet`
+- `FACE_CHAIN_MIN_FACE_SIMILARITY=0.64`
+
+You can override them with flags or environment variables. If the image is already public, pass its URL like this:
 
 ```bash
 cargo run -- \
   --image samples/input.jpg \
-  --image-url "https://example.com/image.jpg" \
-  --search-provider serpapi \
-  --chain-provider solana-memo \
-  --solana-cluster devnet \
-  --min-face-similarity 0.64
+  --image-url "https://example.com/image.jpg"
 ```
 
 Outputs:
@@ -84,11 +82,7 @@ solana config set --url devnet
 solana airdrop 1
 
 cargo run -- \
-  --image samples/input.jpg \
-  --search-provider serpapi \
-  --chain-provider solana-memo \
-  --solana-cluster devnet \
-  --min-face-similarity 0.64
+  --image samples/input.jpg
 ```
 
 The project also includes a local simulated chain for offline development:
@@ -107,6 +101,6 @@ Local mode appends blocks to `data/local_chain.json`, but the final recording sh
 - The built-in face scanner is a lightweight Rust heuristic, not a production-grade face recognition model.
 - Reverse image search depends on what Google Lens/SerpAPI can index publicly.
 - Social media platforms may block full media downloads, so some discovered social matches may not receive a `VERIFIED` label.
-- SerpAPI local image upload supports JPG, PNG, and WebP files up to 500 KB.
+- SerpAPI local image upload supports JPG, PNG, and WebP files up to 500 KB; larger inputs are compressed before upload.
 - Solana devnet requires the Solana CLI, a configured devnet keypair, and enough devnet SOL for a small memo transaction.
 - Use public figures, public posts, or consented images for demos.

@@ -8,16 +8,21 @@ pub struct Cli {
     #[arg(long, value_name = "PATH")]
     pub image: PathBuf,
 
-    #[arg(long, value_enum, default_value_t = SearchProvider::Fixture)]
+    #[arg(
+        long,
+        env = "FACE_CHAIN_SEARCH_PROVIDER",
+        value_enum,
+        default_value_t = SearchProvider::Serpapi
+    )]
     pub search_provider: SearchProvider,
 
     #[arg(long, env = "SERPAPI_KEY")]
     pub serpapi_key: Option<String>,
 
-    #[arg(long, value_name = "URL")]
+    #[arg(long, env = "FACE_CHAIN_IMAGE_URL", value_name = "URL")]
     pub image_url: Option<String>,
 
-    #[arg(long, default_value_t = 0.82)]
+    #[arg(long, env = "FACE_CHAIN_MIN_FACE_SIMILARITY", default_value_t = 0.64)]
     pub min_face_similarity: f32,
 
     #[arg(
@@ -27,16 +32,26 @@ pub struct Cli {
     )]
     pub fixture: PathBuf,
 
-    #[arg(long, value_enum, default_value_t = ChainProvider::Local)]
+    #[arg(
+        long,
+        env = "FACE_CHAIN_CHAIN_PROVIDER",
+        value_enum,
+        default_value_t = ChainProvider::SolanaMemo
+    )]
     pub chain_provider: ChainProvider,
 
-    #[arg(long, value_name = "PATH", default_value = "data/local_chain.json")]
+    #[arg(
+        long,
+        env = "FACE_CHAIN_LOCAL_CHAIN",
+        value_name = "PATH",
+        default_value = "data/local_chain.json"
+    )]
     pub local_chain: PathBuf,
 
-    #[arg(long, default_value = "devnet")]
+    #[arg(long, env = "FACE_CHAIN_SOLANA_CLUSTER", default_value = "devnet")]
     pub solana_cluster: String,
 
-    #[arg(long)]
+    #[arg(long, env = "FACE_CHAIN_SKIP_VERIFY")]
     pub skip_verify: bool,
 }
 

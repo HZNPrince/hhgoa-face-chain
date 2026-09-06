@@ -1,7 +1,16 @@
 use crate::{cli::SearchProvider, face};
 use anyhow::{Context, Result, bail};
+use image::{GenericImageView, codecs::jpeg::JpegEncoder, imageops::FilterType};
 use serde::{Deserialize, Serialize};
-use std::{path::Path, process::Command};
+use sha2::{Digest, Sha256};
+use std::{
+    fs::File,
+    io::Write,
+    path::{Path, PathBuf},
+    process::Command,
+};
+
+const SERPAPI_MAX_UPLOAD_BYTES: u64 = 500_000;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchHit {
@@ -167,15 +176,13 @@ fn prepare_serpapi_query(
 
     let metadata = std::fs::metadata(image_path)
         .with_context(|| format!("checking image size for {}", image_path.display()))?;
-    if metadata.len() > 500_000 {
-        bail!(
-            "SerpAPI image upload accepts images up to 500 KB; {} is {} KB. Compress it or pass --image-url for a public image.",
-            image_path.display(),
-            metadata.len() / 1024
-        );
-    }
+    let upload_path = if metadata.len() > SERPAPI_MAX_UPLOAD_BYTES {
+        compress_for_serpapi_upload(image_path)?
+    } else {
+        image_path.to_path_buf()
+    };
 
-    let form_image = format!("image=@{}", image_path.display());
+    let form_image = format!("image=@{}", upload_path.display());
     let output = Command::new("curl")
         .args([
             "-sS",
@@ -208,6 +215,51 @@ fn prepare_serpapi_query(
         .image_id
         .context("SerpAPI image upload response did not include image_id")?;
     Ok(SerpApiLensQuery::ImageId(image_id))
+}
+
+fn compress_for_serpapi_upload(image_path: &Path) -> Result<PathBuf> {
+    let bytes =
+        std::fs::read(image_path).with_context(|| format!("reading {}", image_path.display()))?;
+    let digest = hex::encode(Sha256::digest(&bytes));
+    let output_path =
+        std::env::temp_dir().join(format!("hhgoa-face-chain-upload-{}.jpg", &digest[..16]));
+    if output_path.exists()
+        && std::fs::metadata(&output_path)
+            .map(|metadata| metadata.len() <= SERPAPI_MAX_UPLOAD_BYTES)
+            .unwrap_or(false)
+    {
+        return Ok(output_path);
+    }
+
+    let image = image::load_from_memory(&bytes).context("decoding image for upload compression")?;
+    let (width, height) = image.dimensions();
+    let max_side = width.max(height).max(1);
+    let scale = (1280.0_f32 / max_side as f32).min(1.0);
+    let resized = image.resize(
+        (width as f32 * scale).round().max(1.0) as u32,
+        (height as f32 * scale).round().max(1.0) as u32,
+        FilterType::Triangle,
+    );
+
+    for quality in [85, 75, 65, 55, 45] {
+        let mut encoded = Vec::new();
+        let mut encoder = JpegEncoder::new_with_quality(&mut encoded, quality);
+        encoder
+            .encode_image(&resized)
+            .context("encoding compressed upload image")?;
+        if encoded.len() as u64 <= SERPAPI_MAX_UPLOAD_BYTES {
+            let mut file = File::create(&output_path)
+                .with_context(|| format!("creating {}", output_path.display()))?;
+            file.write_all(&encoded)
+                .with_context(|| format!("writing {}", output_path.display()))?;
+            return Ok(output_path);
+        }
+    }
+
+    bail!(
+        "could not compress {} below 500 KB for SerpAPI upload; pass --image-url instead",
+        image_path.display()
+    )
 }
 
 fn verify_candidate_face(
