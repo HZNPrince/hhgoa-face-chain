@@ -5,6 +5,8 @@ use crate::{
     face, search,
 };
 use anyhow::{Context, Result, bail};
+use comfy_table::{Attribute, Cell, Color, ContentArrangement, Table, presets::UTF8_FULL};
+use owo_colors::OwoColorize;
 use serde::Serialize;
 
 const EVIDENCE_PATH: &str = "data/evidence.json";
@@ -90,7 +92,10 @@ pub fn run(cli: Cli) -> Result<()> {
     println!("    Record         {}", receipt.record_id);
     println!("    Verification   {}", receipt.verification);
     if let Some(explorer_url) = solana_explorer_url(&receipt) {
-        println!("    Explorer       {explorer_url}");
+        println!(
+            "    Explorer       {}",
+            clickable_link(&explorer_url, &explorer_url)
+        );
     }
 
     let report = PipelineReport {
@@ -103,8 +108,8 @@ pub fn run(cli: Cli) -> Result<()> {
         .context("writing data/report.json")?;
 
     println!();
-    println!("Result");
-    println!("  Status          COMPLETE");
+    println!("{}", "Result".bold().bright_green());
+    println!("  Status          {}", "COMPLETE".green().bold());
     println!("  Pipeline        face scan -> discovery -> evidence hash -> chain verification");
     println!("  Report file     {REPORT_PATH}");
     Ok(())
@@ -112,14 +117,21 @@ pub fn run(cli: Cli) -> Result<()> {
 
 fn print_banner() {
     println!();
-    println!("HH Goa Face Chain");
-    println!("Face scan -> web/social discovery -> blockchain verification");
-    println!("{}", "-".repeat(72));
+    println!("{}", "HH Goa Face Chain".bold().bright_cyan());
+    println!(
+        "{}",
+        "Face scan -> web/social discovery -> blockchain verification".bright_black()
+    );
+    println!("{}", "─".repeat(72).bright_black());
 }
 
 fn print_step(number: u8, title: &str) {
     println!();
-    println!("[{number}/4] {title}");
+    println!(
+        "{} {}",
+        format!("[{number}/4]").bold().bright_blue(),
+        title.bold()
+    );
 }
 
 fn print_candidates<'a>(title: &str, candidates: impl Iterator<Item = &'a search::SearchHit>) {
@@ -129,33 +141,46 @@ fn print_candidates<'a>(title: &str, candidates: impl Iterator<Item = &'a search
     }
 
     println!();
-    println!("    {title}");
-    println!("    {}", "-".repeat(72));
+    println!("    {}", title.bold().bright_cyan());
     for (index, candidate) in candidates.iter().enumerate() {
         print_candidate(index + 1, candidate);
     }
 }
 
 fn print_candidate(index: usize, candidate: &search::SearchHit) {
+    let mut table = Table::new();
+    table
+        .load_preset(UTF8_FULL)
+        .set_content_arrangement(ContentArrangement::Dynamic)
+        .set_width(112);
+    table.add_row([
+        Cell::new(format!("{index:02}"))
+            .fg(Color::Blue)
+            .add_attribute(Attribute::Bold),
+        Cell::new(format_check(candidate)).fg(check_color(candidate)),
+        Cell::new(format!("score {}", format_score(candidate.face_similarity))).fg(Color::Yellow),
+        Cell::new(candidate.source.clone()).fg(Color::Magenta),
+        Cell::new(clip(&candidate.title, 68)),
+    ]);
+    println!("{table}");
     println!(
-        "    {:02}. {}  score {}",
-        index,
-        format_check(candidate),
-        format_score(candidate.face_similarity)
+        "    {} {}",
+        "Link".bright_black(),
+        clickable_link(&candidate.url, &candidate.url)
     );
-    println!("        Title  {}", clip(&candidate.title, 92));
-    println!("        Source {}", candidate.source);
-    println!("        Link   {}", candidate.url);
 }
 
 fn print_selected(candidate: &search::SearchHit) {
     println!();
-    println!("    Selected match");
-    println!("    {}", "-".repeat(72));
-    println!("    Title          {}", clip(&candidate.title, 92));
-    println!("    URL            {}", candidate.url);
+    println!("    {}", "Selected match".bold().bright_green());
+    println!("    {}", "─".repeat(72).bright_black());
+    println!("    Title          {}", clip(&candidate.title, 92).bold());
+    println!(
+        "    URL            {}",
+        clickable_link(&candidate.url, &candidate.url)
+    );
     println!("    Source         {}", candidate.source);
-    println!("    Face check     {}", format_check(candidate));
+    println!("    Face check     {}", styled_check(candidate));
     if let Some(similarity) = candidate.face_similarity {
         println!("    Similarity     {similarity:.3}");
     }
@@ -180,6 +205,26 @@ fn format_check(candidate: &search::SearchHit) -> &'static str {
     } else {
         "DISCOVERED"
     }
+}
+
+fn styled_check(candidate: &search::SearchHit) -> String {
+    if candidate.face_verified {
+        "VERIFIED".green().bold().to_string()
+    } else {
+        "DISCOVERED".white().to_string()
+    }
+}
+
+fn check_color(candidate: &search::SearchHit) -> Color {
+    if candidate.face_verified {
+        Color::Green
+    } else {
+        Color::White
+    }
+}
+
+fn clickable_link(label: &str, url: &str) -> String {
+    format!("\x1b]8;;{url}\x1b\\{label}\x1b]8;;\x1b\\")
 }
 
 fn short_hash(value: &str, keep: usize) -> String {

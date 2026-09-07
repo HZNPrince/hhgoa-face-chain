@@ -14,7 +14,7 @@ What it does:
 
 - Detects a face-like region from an input image and creates a deterministic face fingerprint.
 - Uses SerpAPI Google Lens to run a real reverse image search from either a local uploaded image or a public image URL.
-- Prints top web results and social candidates separately.
+- Prints top web results and social candidates separately with clickable terminal links where supported.
 - Marks only successful candidate face checks as `VERIFIED`; other results remain normal discovered sources.
 - Builds `data/evidence.json` with the selected match plus multiple discovered candidates.
 - Hashes the evidence JSON with SHA-256.
