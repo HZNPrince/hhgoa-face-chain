@@ -45,7 +45,7 @@ Real reverse-image demo:
 export SERPAPI_KEY=your_serpapi_key
 solana config set --url devnet
 
-cargo run -- --image samples/input.jpg
+cargo run -- --image samples/orry.jpg
 ```
 
 The default settings are:
@@ -59,7 +59,7 @@ You can override them with flags or environment variables. If the image is alrea
 
 ```bash
 cargo run -- \
-  --image samples/input.jpg \
+  --image samples/orry.jpg \
   --image-url "https://example.com/image.jpg"
 ```
 
@@ -82,7 +82,7 @@ solana config set --url devnet
 solana airdrop 1
 
 cargo run -- \
-  --image samples/input.jpg
+  --image samples/orry.jpg
 ```
 
 The project also includes a local simulated chain for offline development:
