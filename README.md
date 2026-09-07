@@ -69,8 +69,6 @@ Outputs:
 - `data/links.html`
 - `data/report.json`
 
-For recording prep, open `demo.html`. It is only a demo script page, not a hosted project website.
-
 ## Blockchain Used
 
 The submission demo uses **Solana devnet memo transactions**:
