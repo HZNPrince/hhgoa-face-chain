@@ -66,6 +66,7 @@ cargo run -- \
 Outputs:
 
 - `data/evidence.json`
+- `data/links.html`
 - `data/report.json`
 
 ## Blockchain Used
