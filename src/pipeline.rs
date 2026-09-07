@@ -77,6 +77,9 @@ pub fn run(cli: Cli) -> Result<()> {
 
     print_step(4, "Blockchain record");
     println!("    Chain          {:?}", cli.chain_provider);
+    if matches!(cli.chain_provider, crate::cli::ChainProvider::SolanaMemo) {
+        println!("    Memo           hhgoa-face-chain:{evidence_hash}");
+    }
     let receipt = chain::publish_and_verify(
         &cli.chain_provider,
         &evidence_hash,
@@ -86,6 +89,9 @@ pub fn run(cli: Cli) -> Result<()> {
     )?;
     println!("    Record         {}", receipt.record_id);
     println!("    Verification   {}", receipt.verification);
+    if let Some(explorer_url) = solana_explorer_url(&receipt) {
+        println!("    Explorer       {explorer_url}");
+    }
 
     let report = PipelineReport {
         face,
@@ -124,26 +130,32 @@ fn print_candidates<'a>(title: &str, candidates: impl Iterator<Item = &'a search
 
     println!();
     println!("    {title}");
-    println!("    {:<3} {:<10} {:<7} {}", "#", "Check", "Score", "Result");
-    println!("    {}", "-".repeat(92));
+    println!("    {}", "-".repeat(72));
     for (index, candidate) in candidates.iter().enumerate() {
-        println!(
-            "    {:<3} {:<10} {:<7} {}",
-            index + 1,
-            candidate.face_check_status.label(),
-            format_score(candidate.face_similarity),
-            clip(&format!("{} - {}", candidate.title, candidate.url), 72)
-        );
+        print_candidate(index + 1, candidate);
     }
+}
+
+fn print_candidate(index: usize, candidate: &search::SearchHit) {
+    println!(
+        "    {:02}. {}  score {}",
+        index,
+        format_check(candidate),
+        format_score(candidate.face_similarity)
+    );
+    println!("        Title  {}", clip(&candidate.title, 92));
+    println!("        Source {}", candidate.source);
+    println!("        Link   {}", candidate.url);
 }
 
 fn print_selected(candidate: &search::SearchHit) {
     println!();
     println!("    Selected match");
-    println!("    Title          {}", clip(&candidate.title, 72));
+    println!("    {}", "-".repeat(72));
+    println!("    Title          {}", clip(&candidate.title, 92));
     println!("    URL            {}", candidate.url);
     println!("    Source         {}", candidate.source);
-    println!("    Face check     {}", candidate.face_check_status.label());
+    println!("    Face check     {}", format_check(candidate));
     if let Some(similarity) = candidate.face_similarity {
         println!("    Similarity     {similarity:.3}");
     }
@@ -162,6 +174,14 @@ fn format_score(score: Option<f32>) -> String {
         .unwrap_or_else(|| "-".to_string())
 }
 
+fn format_check(candidate: &search::SearchHit) -> &'static str {
+    if candidate.face_verified {
+        "VERIFIED"
+    } else {
+        "DISCOVERED"
+    }
+}
+
 fn short_hash(value: &str, keep: usize) -> String {
     if value.len() <= keep {
         return value.to_string();
@@ -175,6 +195,14 @@ fn clip(value: &str, max_chars: usize) -> String {
         clipped.push_str("...");
     }
     clipped
+}
+
+fn solana_explorer_url(receipt: &chain::ChainReceipt) -> Option<String> {
+    let cluster = receipt.provider.strip_prefix("solana-memo-")?;
+    Some(format!(
+        "https://explorer.solana.com/tx/{}?cluster={}",
+        receipt.record_id, cluster
+    ))
 }
 
 fn evidence_shortlist<'a>(

@@ -50,13 +50,6 @@ impl FaceCheckStatus {
             Self::Mismatch | Self::Unverified => "discovered",
         }
     }
-
-    pub fn label(&self) -> &'static str {
-        match self {
-            Self::Verified => "VERIFIED",
-            Self::Mismatch | Self::Unverified => "-",
-        }
-    }
 }
 
 pub fn find_match(
