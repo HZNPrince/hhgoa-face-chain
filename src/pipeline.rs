@@ -153,32 +153,40 @@ fn print_candidates<'a>(title: &str, candidates: impl Iterator<Item = &'a search
 
     println!();
     println!("    {}", title.bold().bright_cyan());
-    for (index, candidate) in candidates.iter().enumerate() {
-        print_candidate(index + 1, candidate);
-    }
-}
-
-fn print_candidate(index: usize, candidate: &search::SearchHit) {
     let mut table = Table::new();
     table
         .load_preset(UTF8_FULL)
         .set_content_arrangement(ContentArrangement::Dynamic)
-        .set_width(112);
-    table.add_row([
-        Cell::new(format!("{index:02}"))
+        .set_width(132);
+    table.set_header([
+        Cell::new("#")
             .fg(Color::Blue)
             .add_attribute(Attribute::Bold),
-        Cell::new(format_check(candidate)).fg(check_color(candidate)),
-        Cell::new(format!("score {}", format_score(candidate.face_similarity))).fg(Color::Yellow),
-        Cell::new(candidate.source.clone()).fg(Color::Magenta),
-        Cell::new(clip(&candidate.title, 68)),
+        Cell::new("Check").add_attribute(Attribute::Bold),
+        Cell::new("Score")
+            .fg(Color::Yellow)
+            .add_attribute(Attribute::Bold),
+        Cell::new("Source")
+            .fg(Color::Magenta)
+            .add_attribute(Attribute::Bold),
+        Cell::new("Title").add_attribute(Attribute::Bold),
+        Cell::new("Link").add_attribute(Attribute::Bold),
     ]);
+
+    for (index, candidate) in candidates.iter().enumerate() {
+        table.add_row([
+            Cell::new(format!("{:02}", index + 1))
+                .fg(Color::Blue)
+                .add_attribute(Attribute::Bold),
+            Cell::new(format_check(candidate)).fg(check_color(candidate)),
+            Cell::new(format_score(candidate.face_similarity)).fg(Color::Yellow),
+            Cell::new(clip(&candidate.source, 18)).fg(Color::Magenta),
+            Cell::new(clip(&candidate.title, 48)),
+            Cell::new(clip(&candidate.url, 42)).fg(Color::Cyan),
+        ]);
+    }
+
     println!("{table}");
-    println!(
-        "    {} {}",
-        "Link".bright_black(),
-        clickable_link(&candidate.url, &candidate.url)
-    );
 }
 
 fn print_selected(candidate: &search::SearchHit) {
